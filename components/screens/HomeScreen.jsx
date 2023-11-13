@@ -13,7 +13,8 @@ export default function HomeScreen ({navigation}) {
   const { user, net,setDataOffline } = useContext(UserContext);
   const pickerRef = useRef();
   const isFocused = useIsFocused();
-  const options = [
+  var options = [
+    { label: "Seleccionar tipo de proyecto", value: '' }, // Opción por defecto
     { label: "Proyectos NUEVOS", value: 'pendiente' }, // nuevos proyectos
     { label: "Proyectos EN PROCESO", value: 'en_ejecucion' },
     { label: "Proyectos FINALIZADOS", value: 'terminado' },

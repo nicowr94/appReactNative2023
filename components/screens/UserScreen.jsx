@@ -7,22 +7,43 @@ import SubTitle from '../atoms/SubTitle';
 import { getSolicitudes, postSaveAsistencia } from '../../utils/servicesApi';
 import { formatDateType } from '../../utils/dateFormat';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import locationUser from '../../utils/locationUser';
 
 export default function UserScreen({navigation}) {
 
-  const { user, net, dataOffline, setDataOffline, asistencias, setAsistencias } = useContext(UserContext);
+  const { user, net, geo, dataOffline, setDataOffline, asistencias, setAsistencias } = useContext(UserContext);
   const taskOffline = (dataOffline?.tasksOffline?.length < 10 ? ('0'+ dataOffline?.tasksOffline?.length).slice(-2) : dataOffline?.tasksOffline?.length ) || '00'
   const [solicitudes, setSolicitudes] = useState('00');
   const [asistenciaHoy, setAsistenciaHoy] = useState({});
   const [loading, setLoading] = useState(true);
+  const [permisosSolicitados, setPermisosSolicitados] = useState(false);
 
+  const ubicacion = locationUser({permisosSolicitados})
   const now = formatDateType(new Date(),'DD/MM/YYYY')
+
+
+  useEffect(() => {
+    const solicitarPermisos = async () => {
+      if (!permisosSolicitados) {
+        try {
+          const resultadoPermisos = await ubicacion;
+          console.log("Permisos obtenidos:", resultadoPermisos);
+          // Hacer algo con la ubicación...
+        } catch (error) {
+          console.error("Error al obtener permisos o ubicación:", error);
+          // Manejar el error...
+        } finally {
+          setPermisosSolicitados(true);
+        }
+      }
+    };
+
+    solicitarPermisos();
+  }, [ubicacion, permisosSolicitados]);
 
   async function getElements(){
     const res = (await getSolicitudes(user.token, user.id))?.length || 0
     setSolicitudes(res < 10 ? '0'+ res : res)
-    console.log('asistencias', asistencias );
-    console.log('dataOffline', dataOffline.asistenciasOffline);
     // await AsyncStorage.setItem('asistencias', JSON.stringify('')); await AsyncStorage.setItem('dataOffline', JSON.stringify(''));
 
     const today = (asistencias?.length>0 ? asistencias?.find(a => a?.date=== now)?.data : {}) || {}
@@ -31,47 +52,60 @@ export default function UserScreen({navigation}) {
     //   "fecha_hora_salida": "2023-05-04 9:51:52"
     setAsistenciaHoy(today)
     setLoading(false)
-    console.log('today', today);
-    console.log('now', now);
   };
 
   useEffect(() => {
       getElements()
+      
   }, [])
 
   
   const alertPostAsistenciasAPI = async (type) =>{
+    const position = geo?.stringData || ''
     const title = type === 1 ? 'Registrar ingreso' : 'Registrar salida'
-    const desc = type === 1 ? '¿Está seguro que desea registrar su hora de ingreso?' : '¿Está seguro que desea registrar su hora de salida?'
-    Alert.alert(title, desc, [
-      {
-        text: 'Cancelar',
-        style: 'cancel'
+
+    if (type === 1 && position === 'null'){
+      const desc = 'Es necesario activar el GPS del dispositivo'
+      Alert.alert(title, desc, [
+        {text: 'Ok', onPress: () => {
+        },style: 'default'
       },
-      {text: 'Ok', onPress: () => {
-        setAsistenciasAPI(type)
-      },style: 'default'
-    },
-    ])
+      ])
+    } else {
+      const desc = type === 1 ? '¿Está seguro que desea registrar su hora de ingreso?' : '¿Está seguro que desea registrar su hora de salida?'
+      Alert.alert(title, desc, [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {text: 'Ok', onPress: () => {
+          setAsistenciasAPI(type)
+        },style: 'default'
+      },
+      ])
+    }
+
 }
 
   async function setAsistenciasAPI(type){
 
     const now_save = formatDateType(new Date(),'YYYY/MM/DD HH:MM:SS')
     const now_form = formatDateType(new Date(),'DD/MM/YYYY')
-
+    let position = geo?.stringData || ''
+    if (position === 'null' && type === 2 ) position = asistenciaHoy?.lat_long_ingreso
     const data = {
       "tecnico": user.id,
       "fecha_hora_ingreso":  type === 1 ? now_save : asistenciaHoy?.fecha_hora_ingreso,
-      "fecha_hora_salida": type === 1 ? null : now_save
+      "fecha_hora_salida": type === 1 ? null : now_save,
+      "lat_long_ingreso": type === 1 ? position : asistenciaHoy?.lat_long_ingreso,
+      "lat_long_salida":  type === 1 ? null : position,
     }
-
+    console.log(data)
     if (false){
       const res = await postSaveAsistencia(user.token, data)
     } else {
       const asistenciasOffline = dataOffline.asistenciasOffline ? dataOffline.asistenciasOffline : []
       let found = false
-      console.log('------------------- asistenciasOffline', asistenciasOffline);
 
       for( let i = 0; i < asistenciasOffline?.length; i++){ //buscamos si existe un registro de la fecha para actualizarlo
         if(asistenciasOffline[i].date === now_form){

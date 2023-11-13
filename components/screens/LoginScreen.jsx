@@ -15,7 +15,7 @@ TextInput.defaultProps.selectionColor = 'gray';
 export default function LoginScreen() {
 
   const { passwordVisibility, rightIcon, handlePasswordVisibility } = useTogglePasswordVisibility();
-  const [username, setUsername] = useState('tecnico001@frioteam.pe') // coordinador_operaciones@frioteam.pe - tecnico001@frioteam.pe
+  const [username, setUsername] = useState('tecnico_gps_testing') // coordinador_operaciones@frioteam.pe - tecnico001@frioteam.pe
   const [password, setPassword] = useState('qazwsx,.-UNI')
   const [msgErrorLogin, setMsgErrorLogin] = useState('')
 
@@ -40,6 +40,7 @@ export default function LoginScreen() {
       if (username !== '' && password !== '' ) {
 
         const res = await getToken(username, password)
+        console.log('1111111111111111111111122222222222222', res);
         if (!res.access) {
           setMsgErrorLogin(res.detail)
           return
@@ -62,6 +63,8 @@ export default function LoginScreen() {
           habilitado: user.habilitado,
           token
         }
+
+        console.log('userInfo', userInfo)
 
         await AsyncStorage.setItem('sesion', JSON.stringify(userInfo));
         setMsgErrorLogin('')

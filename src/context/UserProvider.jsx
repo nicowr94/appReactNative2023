@@ -5,6 +5,7 @@ export const UserContext = createContext();
 
 const UserProvider = ({children}) => {
   const [net, setNet] = useState(undefined);
+  const [geo, setGeo] = useState(undefined);
   const [user, setUser] = useState(undefined);
   const [newTask, setNewTask] = useState(undefined);
   const [taskDone, setTaskDone] = useState(undefined); // Tareas terminadas pero no subidas a la base de datos
@@ -32,7 +33,7 @@ const UserProvider = ({children}) => {
         const myTasksDone= await AsyncStorage.getItem('taskDone');
         const myProjectOpen= await AsyncStorage.getItem('projectOpen');
         const myActOpen= await AsyncStorage.getItem('actOpen');
-        const myDataOffline= await AsyncStorage.getItem('dataOffline');
+        const myDataOffline= await AsyncStorage.getItem('dataOffline'); // {}
         const myAsistencias= await AsyncStorage.getItem('asistencias');
         setUser(JSON.parse(mySesion));
         setNewTask(JSON.parse(myTaskNew));
@@ -48,9 +49,19 @@ const UserProvider = ({children}) => {
 
     validStorage();
   }, []);
+  const values = {
+    net, setNet,
+    geo, setGeo,
+    user, setUser,
+    newTask, setNewTask,
+    projectOpen, setProjectOpen,
+    actOpen, setActOpen,
+    dataOffline, setDataOffline,
+    asistencias, setAsistencias
+  }
   
   return (
-    <UserContext.Provider value={{net, setNet, user, setUser, newTask, setNewTask, projectOpen, setProjectOpen, actOpen, setActOpen, dataOffline, setDataOffline, asistencias, setAsistencias}}>
+    <UserContext.Provider value={values}>
       {children}
     </UserContext.Provider>
   );

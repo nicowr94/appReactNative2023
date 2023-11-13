@@ -9,12 +9,35 @@ import RNPickerSelect from "react-native-picker-select";
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getActividadesLabor, getActivitiesByProjectId, postCreateActivitiesByCotizacion, getSites } from '../../utils/servicesApi';
+import locationUser from '../../utils/locationUser';
 
 import {UserContext} from '../../src/context/UserProvider';
 
 export default function CreateTask({navigation}) {
+  console.log('****************************************************')
 
-    const { user, newTask, projectOpen, setNewTask, net, setNet, dataOffline, setDataOffline } = useContext(UserContext);
+    const { user, newTask, projectOpen, setNewTask, net, setNet, dataOffline, setDataOffline, geo } = useContext(UserContext);
+    const [permisosSolicitados, setPermisosSolicitados] = useState(false);
+    const ubicacion = locationUser({permisosSolicitados})
+
+    useEffect(() => {
+      const solicitarPermisos = async () => {
+        if (!permisosSolicitados) {
+          try {
+            const resultadoPermisos = await ubicacion;
+            console.log("Permisos obtenidos:", resultadoPermisos);
+            // Hacer algo con la ubicación...
+          } catch (error) {
+            console.error("Error al obtener permisos o ubicación:", error);
+            // Manejar el error...
+          } finally {
+            setPermisosSolicitados(true);
+          }
+        }
+      };
+  
+      solicitarPermisos();
+    }, [ubicacion, permisosSolicitados]);
     const pickerRef1 = useRef();
     const pickerRef2 = useRef();
     const pickerRef3 = useRef();
@@ -26,23 +49,33 @@ export default function CreateTask({navigation}) {
     ]
 
     let listUbicacionDefault = [
-      { label: "", value: 0, key: 1 },
+      { label: "Sin ubicación", value: 0, key: 1, default: true },
       // { label: "Seleccione el tipo de actividad", value: 0, key: 1, tipo_labores :[{ label: "Seleccione el tipo de labor", value: 1, key: 0}] },
     ]
 
     const parceItemsSelect = (data) =>{
-      const dateParce = data.map( (item) =>{
-        if (item.es_activo){
-          return {
-            label: item.nombre,
-            value: item.nombre,
-            key: item.id
-          }
+      let dateParce
+      try {
+        if (data.length > 0) {
+          console.log(' map')
+          dateParce = data.map( (item) =>{
+            if (item.es_activo){
+              return {
+                label: item.nombre,
+                value: item.nombre,
+                key: item.id
+              }
+            }
+            
+          })
+        } else{
+          dateParce = listUbicacionDefault
         }
-        
+      } catch (error) {
+        console.log(error)
+        // setUbiDefault(true)
+        dateParce = listUbicacionDefault
       }
-      )
-
       return dateParce
     }
 
@@ -81,16 +114,19 @@ export default function CreateTask({navigation}) {
         res = await getActividadesLabor(user.token)
         res = parceItemsSelectMultiple(res)
 
+        let valueDefault = false
         ubicaciones = await getSites(user.token)
+        if (ubicaciones.length === 0 ) valueDefault = true
+        console.log('getSites', ubicaciones)
         ubicaciones = parceItemsSelect(ubicaciones)
         console.log('--------------------------- ubicaciones', ubicaciones);
 
-        const newDataOffline = {...dataOffline, lastmodified: now, actLab: res, ubicaciones }
-        setDataOffline(newDataOffline)
-        await AsyncStorage.setItem('dataOffline', JSON.stringify(newDataOffline));
-        
-
-
+        if (!valueDefault) {
+          console.log('save ')
+          const newDataOffline = {...dataOffline, lastmodified: now, actLab: res, ubicaciones }
+          setDataOffline(newDataOffline)
+          await AsyncStorage.setItem('dataOffline', JSON.stringify(newDataOffline));
+        }
       } else{
 
         res = dataOffline?.actLab ? dataOffline?.actLab : listActLAbAPIDefault
@@ -125,14 +161,26 @@ export default function CreateTask({navigation}) {
     const [ startDate, setStartDate] = useState(null)
     const [ endDate, setEndDate] = useState(null)
 
+    const validarPosition = () => {
+      console.log('validarPosition')
+      const title = 'Comenzar actividad'
+      const desc = 'Es necesario activar el GPS del dispositivo'
+        Alert.alert(title, desc, [
+          {text: 'Ok', onPress: () => {
+          },style: 'default'
+        },
+        ])
+    }
+
     const createTaskInContext= async () => {
-
-
+      let position = geo?.stringData || ''
+      console.log('position', position)
+      if (position === 'null' || position === null) return validarPosition()
       const get_ids = net ? (await getActivitiesByProjectId(user.token,user.id, projectOpen.id)).actividades.sort(function(a,b){return b.id - a.id;})[0]?.id || 0 : 0
       const new_id = ("000"+(get_ids + 1)).slice(-3)
 
       const foundAct = listActLAbAPI.find(a => a?.value === actSelect)
-      const tipo_labor_number = foundAct.tipo_labores?.find(a => a?.label === labSelect).key
+      const tipo_labor_number = foundAct.tipo_labores?.find(a => a?.label === labSelect)?.key
 
       const ubicationNumber = listUbicaciones.find(a => a?.value === ubiSelect).key
 
@@ -149,7 +197,8 @@ export default function CreateTask({navigation}) {
         project_name: projectOpen.cod_nisira,
         project_id: projectOpen.id,
         ubicacion: ubicationNumber,
-        ubicacion_string: ubiSelect
+        ubicacion_string: ubiSelect,
+        lat_long_inicio: position
       }
       setComment('')
       await AsyncStorage.setItem('newTask', JSON.stringify(myTask));
@@ -168,6 +217,7 @@ export default function CreateTask({navigation}) {
           new_id:newTask. new_id,
           project_name: newTask.project_name,
           project_id: newTask.project_id,
+          lat_long_inicio: newTask.lat_long_inicio
         }
 
         const myTask = {
@@ -180,6 +230,8 @@ export default function CreateTask({navigation}) {
 
     const closedTaskInContext= async () => {
       const end_task = new Date()
+      let position = geo?.stringData || ''
+      if (position === 'null') position = newTask.lat_long_inicio
       setEndDate(end_task)
 
       // Enviar actividades
@@ -199,7 +251,9 @@ export default function CreateTask({navigation}) {
         "comentario": comment,
         // Opcional, comentario sobre la actividad
         "es_activo": true, // (*requerido) siempre como activo,
-        "ubicacion": newTask.ubicacion
+        "ubicacion": newTask.ubicacion,
+        "lat_long_inicio": newTask.lat_long_inicio,
+        "lat_long_termino": position,
       }
       
       if( net ) await postCreateActivitiesByCotizacion(user.token, [activities])
@@ -217,7 +271,7 @@ export default function CreateTask({navigation}) {
 
     useEffect(() => {
       const foundAct = listActLAbAPI.find(a => a?.value === actSelect)
-      if(!foundAct.tipo_labores[0]?.value) return
+      if(!foundAct?.tipo_labores[0]?.value) return
       setlabSelect(foundAct.tipo_labores[0]?.value)
       const found = foundAct.tipo_labores;
       setLabOptions(found ? found : null )

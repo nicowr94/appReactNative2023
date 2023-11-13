@@ -31,7 +31,7 @@ export default function Timer({date_start, date_end = undefined, mini = false, a
                     time?.days> 1 ? 
                             <Text style={!mini ? styles.time_days : styles.time_days_mini}>{(time?.days) + ' días' }</Text>
                         :   <Text style={!mini ? styles.time_days : styles.time_days_mini}>{(time?.days) + ' día'}</Text>
-                    ) :''
+                    ) : null
             } 
             <Text style={!mini ? styles.time : styles.time_mini}>{time?.time} </Text>
         </View>
